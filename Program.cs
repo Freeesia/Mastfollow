@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Mastonet;
+using Mastonet.Entities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -29,29 +30,46 @@ static async Task Run(ILogger<Program> logger, IOptions<ConsoleOptions> options,
     var (mastodonUrl, mastodonToken, followerThreshold) = options.Value;
     var client = new MastodonClient(mastodonUrl, mastodonToken, factory.CreateClient());
 
-    var hoge = await client.GetPublicTimeline();
+    var me = await client.GetCurrentUser();
+    var follows = (await client.GetAccountFollowing(me.Id)).Select(x => x.Id).ToHashSet();
 
-    var stream = client.GetPublicStreaming();
-    stream.OnUpdate += async (_, e) =>
+    var pub = client.GetPublicStreaming();
+    pub.OnUpdate += async (_, e) =>
     {
-        if (e.Status.Account.FollowersCount < followerThreshold)
-        {
-            return;
-        }
-        // TODO: リレー関係にあるドメインは除外する
-        if (!e.Status.Account.AccountName.EndsWith("@misskey.io"))
-        {
-            return;
-        }
-        await client.Follow(e.Status.Account.AccountName);
+        logger.LogInformation($"Update: {e.Status.Account.AccountName} {e.Status.Id}");
+        await FollowIfTarget(logger, client, e.Status, follows, followerThreshold);
     };
-    stream.OnDelete += (_, e) => logger.LogInformation($"Deleted: {e.StatusId}");
-    stream.OnNotification += (_, e) => logger.LogInformation($"Notification: {e.Notification.Type}");
-    stream.OnConversation += (_, e) => logger.LogInformation($"Conversation: {e.Conversation.Id}");
-    stream.OnFiltersChanged += (_, e) => logger.LogInformation("Filters changed");
+    var home = client.GetUserStreaming();
+    home.OnUpdate += async (_, e) =>
+    {
+        logger.LogInformation($"Home: {e.Status.Account.AccountName} {e.Status.Id}");
+        var status = e.Status.Reblog;
+        if (status is null)
+        {
+            return;
+        }
+        await FollowIfTarget(logger, client, status, follows, followerThreshold);
+    };
+    await Task.WhenAll(pub.Start(), home.Start());
+}
 
-    await stream.Start();
-    logger.LogInformation("Stream started");
+static async Task FollowIfTarget(ILogger logger, MastodonClient client, Status status, ISet<string> follows, int followerThreshold)
+{
+    // フォロワー数が閾値未満ならフォローしない
+    var follow = status.Account.FollowersCount > followerThreshold;
+    // 既にフォローしているならフォローしない
+    follow &= !follows.Contains(status.Account.Id);
+    // botはフォローしない
+    follow &= !status.Account.Bot ?? false;
+    // 日本語以外の投稿はフォローしない
+    follow &= status.Language == "ja";
+    if (!follow)
+    {
+        return;
+    }
+    await client.Follow(status.Account.Id, true);
+    follows.Add(status.Account.Id);
+    logger.LogInformation($"Followed: {status.Account.AccountName}");
 }
 
 class ConsoleOptions

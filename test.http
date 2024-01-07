@@ -1,0 +1,7 @@
+@base={{$dotenv MastodonUrl}}
+@token={{$dotenv MastodonToken}}
+
+GET {{base}}/api/v1/streaming/health
+###
+GET {{base}}/api/v1/streaming/public
+Authorization: Bearer {{token}}

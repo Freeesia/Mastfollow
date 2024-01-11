@@ -63,6 +63,8 @@ static async Task FollowIfTarget(ILogger logger, MastodonClient client, Status s
     follow &= !status.Account.Bot ?? false;
     // 日本語以外の投稿はフォローしない
     follow &= status.Language == "ja";
+    // フォロワーよりフォローしているならフォローしない
+    follow &= status.Account.FollowingCount <= status.Account.FollowersCount;
     if (!follow)
     {
         return;

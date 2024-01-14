@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Reflection;
+﻿using System.Reflection;
 using Mastonet;
 using Mastonet.Entities;
 using Microsoft.Extensions.Configuration;

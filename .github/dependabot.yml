@@ -5,9 +5,13 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    reviewers:
+      - "Freeesia"
   # github-actioonsの更新
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: weekly
+    reviewers:
+      - "Freeesia"
   

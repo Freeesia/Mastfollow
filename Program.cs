@@ -1,33 +1,46 @@
 ﻿using System.Reflection;
+using ConsoleAppFramework;
 using Mastonet;
 using Mastonet.Entities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Sentry.Extensions.Logging.Extensions.DependencyInjection;
 
-var app = ConsoleApp.CreateBuilder(args)
-    .ConfigureServices((c, s) => s.Configure<ConsoleOptions>(c.Configuration).AddHttpClient())
-    .ConfigureLogging((c, l) => l.AddConfiguration(c.Configuration).AddSentry())
+var configuration = new ConfigurationBuilder()
+    .AddEnvironmentVariables()
     .Build();
-app.AddRootCommand(Run);
 
-using (app.Logger.BeginScope("startup"))
+var services = new ServiceCollection()
+    .Configure<ConsoleOptions>(configuration)
+    .AddLogging(b => b
+        .AddConfiguration(configuration)
+#if !DEBUG
+        .AddSentry()
+#endif
+        .AddConsole())
+    .AddHttpClient();
+
+using var serviceProvider = services.BuildServiceProvider();
+ConsoleApp.ServiceProvider = serviceProvider;
+
+using (var sp = serviceProvider.CreateScope())
 {
-    app.Logger.LogInformation($"App: {app.Environment.ApplicationName}");
-    app.Logger.LogInformation($"Env: {app.Environment.EnvironmentName}");
+    var logger = sp.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    using var scope = logger.BeginScope("startup");
     var assembly = Assembly.GetExecutingAssembly();
     var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
         ?? assembly.GetName().Version?.ToString();
-    app.Logger.LogInformation($"Ver: {version}");
+    logger.LogInformation($"Ver: {version}");
 }
 
-await app.RunAsync();
+await ConsoleApp.RunAsync(args, Run);
 
-static async Task Run(ILogger<Program> logger, IOptions<ConsoleOptions> options, IHttpClientFactory factory)
+static async Task Run([FromServices] ILogger<Program> logger, [FromServices] IOptions<ConsoleOptions> options, [FromServices] HttpClient http)
 {
     var (mastodonUrl, mastodonToken, followerThreshold) = options.Value;
-    var client = new MastodonClient(mastodonUrl, mastodonToken, factory.CreateClient());
+    var client = new MastodonClient(mastodonUrl, mastodonToken, http);
 
     var me = await client.GetCurrentUser();
     var follows = (await client.GetAccountFollowing(me.Id)).Select(x => x.Id).ToHashSet();

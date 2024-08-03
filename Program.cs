@@ -1,4 +1,6 @@
-﻿using System.Reflection;
+﻿using System.Net.Sockets;
+using System.Net.WebSockets;
+using System.Reflection;
 using ConsoleAppFramework;
 using Mastonet;
 using Mastonet.Entities;
@@ -17,10 +19,35 @@ var services = new ServiceCollection()
     .AddLogging(b => b
         .AddConfiguration(configuration)
 #if !DEBUG
-        .AddSentry()
+        .AddSentry(op =>
+        {
+            op.SampleRate = 0.25f;
+            op.CaptureFailedRequests = true;
+            op.SetBeforeSend(BeforeSend);
+        })
 #endif
         .AddConsole())
     .AddHttpClient();
+
+#pragma warning disable CS8321 // Releaseで使用するので警告を無視
+static SentryEvent? BeforeSend(SentryEvent ev, SentryHint hint)
+#pragma warning restore CS8321
+{
+    // ConnectionRefusedの場合はサーバー起動してないので無視
+    if (ev.Exception is HttpRequestException &&
+        ev.Exception.InnerException is SocketException se &&
+        se.SocketErrorCode == SocketError.ConnectionRefused)
+    {
+        return null;
+    }
+    // ConnectionClosedPrematurelyの場合はたぶんサーバーが再起動したので、再接続する
+    else if (ev.Exception is WebSocketException wse &&
+        wse.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely)
+    {
+        return null;
+    }
+    return ev;
+}
 
 using var serviceProvider = services.BuildServiceProvider();
 ConsoleApp.ServiceProvider = serviceProvider;

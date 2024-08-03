@@ -18,20 +18,20 @@ var services = new ServiceCollection()
     .Configure<ConsoleOptions>(configuration)
     .AddLogging(b => b
         .AddConfiguration(configuration)
-#if !DEBUG
         .AddSentry(op =>
         {
+            op.Dsn = "";
             op.SampleRate = 0.25f;
             op.CaptureFailedRequests = true;
+            op.FailedRequestStatusCodes.Clear();
+            op.FailedRequestStatusCodes.Add((400, 499));
+            op.FailedRequestStatusCodes.Add((501, 599));
             op.SetBeforeSend(BeforeSend);
         })
-#endif
         .AddConsole())
     .AddHttpClient();
 
-#pragma warning disable CS8321 // Releaseで使用するので警告を無視
 static SentryEvent? BeforeSend(SentryEvent ev, SentryHint hint)
-#pragma warning restore CS8321
 {
     // ConnectionRefusedの場合はサーバー起動してないので無視
     if (ev.Exception is HttpRequestException &&

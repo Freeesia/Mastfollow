@@ -10,7 +10,7 @@
   <ItemGroup>
     <PackageReference Include="ConsoleAppFramework" Version="5.2.4" />
     <PackageReference Include="Ensure.That" Version="10.1.0" />
-    <PackageReference Include="Mastonet" Version="3.1.1" />
+    <PackageReference Include="Mastonet" Version="3.1.2" />
     <PackageReference Include="Sentry.Extensions.Logging" Version="4.11.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />

@@ -20,7 +20,7 @@ jobs:
     - uses: gittools/actions/gitversion/setup@v4
       with:
         versionSpec: '6.x'
-    - uses: gittools/actions/gitversion/execute@v3
+    - uses: gittools/actions/gitversion/execute@v4
     - run: |
         IMAGE_ID=${{ github.repository }}
         IMAGE_ID=${IMAGE_ID,,}
